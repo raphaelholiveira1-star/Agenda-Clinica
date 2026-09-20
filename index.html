@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clínica Vitta | Agende sua consulta</title>
+<meta name="description" content="Agendamento online de consultas. Projeto de demonstração.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+<span class="brand">Clínica Vitta</span>
+<nav class="tabs" aria-label="Seções"><button data-tab="ag" aria-pressed="true">Agendar consulta</button><button data-tab="pn" aria-pressed="false">Agenda da clínica</button></nav>
+</div></header>
+
+<main class="wrap">
+<section id="vAg">
+<div class="hero"><h1>Agende sua consulta em menos de um minuto.</h1><p>Escolha a especialidade, o dia e o horário. Sem ligar e sem fila de espera.</p></div>
+<div id="steps">
+<div class="card"><h2><i>1</i> Especialidade e profissional</h2><div class="chips" id="specs"></div><div id="pros"></div></div>
+<div class="card" id="c2" hidden><h2><i>2</i> Data</h2><div class="chips scroll" id="dates"></div></div>
+<div class="card" id="c3" hidden><h2><i>3</i> Horário</h2><div id="times"></div></div>
+<form class="card" id="c4" hidden>
+<h2><i>4</i> Seus dados</h2>
+<div class="sm" id="sm"></div>
+<div class="f"><label class="l" for="nm">Nome completo</label><input type="text" id="nm" required autocomplete="name"></div>
+<div class="f"><label class="l" for="tl">WhatsApp</label><input type="text" id="tl" inputmode="tel" required minlength="14" placeholder="(11) 90000-0000" autocomplete="tel"></div>
+<div class="f"><label class="l" for="em">E-mail</label><input type="email" id="em" required autocomplete="email"></div>
+<div class="f"><span class="l">Tipo de atendimento</span><div class="seg"><label><input type="radio" name="at" value="Particular" checked><span>Particular</span></label><label><input type="radio" name="at" value="Convênio"><span>Convênio</span></label></div></div>
+<div class="f" id="cvw" hidden><label class="l" for="cv">Nome do convênio</label><input type="text" id="cv"></div>
+<label class="chk"><input type="checkbox" required><span>Concordo com o uso dos meus dados para agendar e lembrar da consulta.</span></label>
+<button class="btn full" type="submit">Confirmar agendamento</button>
+<p class="note">Demonstração: use dados fictícios. Nada é enviado, e os agendamentos ficam salvos só no seu navegador.</p>
+</form>
+</div>
+<div id="ok" hidden></div>
+</section>
+
+<section id="vPn" hidden>
+<div class="hero"><h1>Agenda da clínica</h1><p>Visão da recepção: todos os agendamentos, organizados por dia. Nesta demonstração eles ficam salvos apenas no seu navegador.</p></div>
+<div id="panel"></div>
+</section>
+</main>
+<footer class="wrap"><p class="note">Projeto de demonstração: clínica fictícia criada para mostrar um sistema de agendamento online.</p></footer>
+
+<script>
+const $=s=>document.querySelector(s),brl=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0'),iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const fm=m=>pad(Math.floor(m/60))+':'+pad(m%60);
+const fd=k=>new Date(k+'T00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
+
+const SP=[
+{id:'cg',n:'Clínica geral',e:'🩺',v:220,p:[['h','Dra. Helena Duarte','Adultos'],['m','Dr. Marcos Vieira','Adultos e idosos']]},
+{id:'de',n:'Dermatologia',e:'🧴',v:320,p:[['c','Dra. Camila Rocha','Pele, cabelo e unhas']]},
+{id:'pe',n:'Pediatria',e:'🧸',v:240,p:[['a','Dr. André Lima','Crianças e adolescentes']]},
+{id:'ps',n:'Psicologia',e:'🌿',v:180,p:[['b','Dra. Beatriz Nunes','Terapia individual']]},
+{id:'nu',n:'Nutrição',e:'🥗',v:160,p:[['l','Lucas Ferraz','Reeducação alimentar']]}
+];
+const PRO={};SP.forEach(s=>s.p.forEach(p=>{PRO[p[0]]={n:p[1],s};}));
+const T=[];for(let m=480;m<1080;m+=30)if(m<720||m>=810)T.push(m);
+
+let B=[];try{B=JSON.parse(localStorage.getItem('vitta-agenda')||'[]');}catch(e){}
+const save=()=>{try{localStorage.setItem('vitta-agenda',JSON.stringify(B));}catch(e){}};
+let st={spec:null,pro:null,date:null,time:null};
+const val=()=>$('input[name=at]:checked').value;
+
+function busy(p,d,m){let h=0;for(const c of p+d)h=(h*31+c.charCodeAt(0))%9973;return (h+m/30*7)%5===0;}
+const taken=(p,d,m)=>busy(p,d,m)||B.some(b=>b.pro===p&&b.date===d&&b.time===fm(m));
+function days(){const r=[],t=new Date();t.setHours(0,0,0,0);for(let i=0;r.length<14;i++){const d=new Date(t);d.setDate(t.getDate()+i);if(d.getDay())r.push(d);}return r;}
+
+function rSpecs(){$('#specs').innerHTML=SP.map(s=>`<button class="chip" data-spec="${s.id}" aria-pressed="${st.spec===s.id}">${s.e} ${s.n}</button>`).join('');}
+function rPros(){
+  const s=SP.find(x=>x.id===st.spec);
+  $('#pros').innerHTML=s?`<p class="note">Consulta particular: ${brl(s.v)}</p><div class="pros">`+s.p.map(p=>`<button class="pro" data-pro="${p[0]}" aria-pressed="${st.pro===p[0]}"><b>${p[1]}</b><small>${p[2]}</small></button>`).join('')+'</div>':'';
+}
+function rDates(){
+  $('#dates').innerHTML=days().map(d=>{const k=iso(d);return `<button class="chip date" data-date="${k}" aria-pressed="${st.date===k}"><small>${d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')}</small><b>${d.getDate()}</b><small>${d.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')}</small></button>`;}).join('');
+}
+function rTimes(){
+  const now=new Date(),today=iso(now)===st.date,nm=now.getHours()*60+now.getMinutes(),sat=new Date(st.date+'T00:00').getDay()===6;
+  const L=T.filter(m=>!(sat&&m>=720));
+  $('#times').innerHTML=[['Manhã',L.filter(m=>m<720)],['Tarde',L.filter(m=>m>=720)]].filter(g=>g[1].length).map(g=>`<p class="note">${g[0]}</p><div class="slots">`+g[1].map(m=>{const off=taken(st.pro,st.date,m)||(today&&m<=nm+30);return `<button class="slot" data-time="${fm(m)}" ${off?'disabled':''} aria-pressed="${st.time===fm(m)}">${fm(m)}</button>`;}).join('')+'</div>').join('');
+}
+function step(){
+  $('#c2').hidden=!st.pro;$('#c3').hidden=!st.date;$('#c4').hidden=!st.time;
+  if(st.pro)rDates();
+  if(st.date)rTimes();
+  const conv=val()==='Convênio';
+  $('#cvw').hidden=!conv;$('#cv').required=conv;
+  if(st.time){const P=PRO[st.pro];$('#sm').innerHTML=`<b>${P.n}</b> · ${P.s.n}<br>${fd(st.date)} às ${st.time}<br>${conv?'Valor conforme o convênio':'Particular: '+brl(P.s.v)}`;}
+  const last=st.time?'c4':st.date?'c3':st.pro?'c2':null;
+  if(last)$('#'+last).scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function reset(){
+  st={spec:null,pro:null,date:null,time:null};$('#c4').reset();
+  $('#steps').hidden=false;$('#ok').hidden=true;
+  rSpecs();rPros();step();
+}
+function tab(id){
+  $('#vAg').hidden=id!=='ag';$('#vPn').hidden=id!=='pn';
+  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tab===id));
+  if(id==='pn')rPanel();
+  window.scrollTo({top:0});
+}
+function rPanel(){
+  const L=[...B].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)),hoje=iso(new Date());
+  if(!L.length){$('#panel').innerHTML='<div class="empty">Nenhum agendamento ainda. Faça um na aba Agendar consulta e ele aparece aqui.</div>';return;}
+  const G={};L.forEach(b=>{(G[b.date]=G[b.date]||[]).push(b);});
+  $('#panel').innerHTML=Object.keys(G).map(k=>`<h3 class="day">${fd(k)}${k===hoje?' (hoje)':''}</h3>`+G[k].map(b=>{const P=PRO[b.pro];return `<div class="appt"><span class="hr">${b.time}</span><div><b>${esc(b.nome)}</b><small>${esc(b.tel)} · ${esc(b.conv)}</small><small>${P.n} · ${P.s.n}</small></div><button class="btn2" data-cancel="${b.id}">Cancelar</button></div>`;}).join('')).join('');
+}
+function showOk(b){
+  const P=PRO[b.pro],[y,mo,dd]=b.date.split('-'),[hh,mi]=b.time.split(':'),em=+hh*60+ +mi+30;
+  const cal=['BEGIN:VCALENDAR','VERSION:2.0','BEGIN:VEVENT','DTSTART:'+y+mo+dd+'T'+hh+mi+'00','DTEND:'+y+mo+dd+'T'+pad(Math.floor(em/60))+pad(em%60)+'00','SUMMARY:Consulta - '+P.n,'LOCATION:Clínica Vitta','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const url=URL.createObjectURL(new Blob([cal],{type:'text/calendar'}));
+  $('#steps').hidden=true;$('#ok').hidden=false;
+  $('#ok').innerHTML=`<div class="card ok"><h2>Consulta agendada!</h2><p>Olá, <b>${esc(b.nome.split(' ')[0])}</b>. Seu código é <b>${b.code}</b>.</p><div class="sm"><b>${P.n}</b> · ${P.s.n}<br>${fd(b.date)} às ${b.time}<br>Clínica Vitta, Rua das Palmeiras, 120</div><p class="note">Você receberá um lembrete por WhatsApp e e-mail um dia antes (demonstração).</p><div class="acts"><a class="btn" href="${url}" download="consulta.ics">Adicionar ao calendário</a><button class="btn2" data-tab="pn">Ver agenda da clínica</button><button class="btn2" data-new>Novo agendamento</button></div></div>`;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-tab],[data-spec],[data-pro],[data-date],[data-time],[data-cancel],[data-new]');
+  if(!t)return;
+  const d=t.dataset;
+  if(d.tab)tab(d.tab);
+  else if(d.spec){const s=SP.find(x=>x.id===d.spec);st={spec:d.spec,pro:s.p.length===1?s.p[0][0]:null,date:null,time:null};rSpecs();rPros();step();}
+  else if(d.pro){st.pro=d.pro;st.date=null;st.time=null;rPros();step();}
+  else if(d.date){st.date=d.date;st.time=null;step();}
+  else if(d.time){st.time=d.time;step();}
+  else if(d.cancel){if(confirm('Cancelar este agendamento?')){B=B.filter(b=>String(b.id)!==d.cancel);save();rPanel();}}
+  else if('new' in d){reset();tab('ag');}
+});
+document.querySelectorAll('input[name=at]').forEach(r=>r.addEventListener('change',step));
+$('#tl').addEventListener('input',e=>{const d=e.target.value.replace(/\D/g,'').slice(0,11);e.target.value=d.replace(/^(\d{2})(\d{4,5})(\d{4})$/,'($1) $2-$3');});
+$('#c4').addEventListener('submit',e=>{
+  e.preventDefault();
+  const b={id:Date.now(),code:'VT-'+Math.floor(1000+Math.random()*9000),pro:st.pro,date:st.date,time:st.time,nome:$('#nm').value.trim(),tel:$('#tl').value,conv:val()==='Convênio'?($('#cv').value.trim()||'Convênio'):'Particular'};
+  B.push(b);save();showOk(b);
+});
+rSpecs();
+</script>
+</body>
+</html>
